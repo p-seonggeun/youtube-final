@@ -1,4 +1,4 @@
-package io.goorm.youtube.annotation;
+package io.goorm.youtube.security;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 

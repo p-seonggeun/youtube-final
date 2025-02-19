@@ -1,4 +1,4 @@
-package io.goorm.youtube.annotation;
+package io.goorm.youtube.security;
 
 import io.goorm.youtube.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
@@ -25,11 +25,16 @@ public class VideoAuthChecker {
         return videoRepository.findById(videoSeq)
                 .map(video -> {
                     boolean isOwner = video.getMember().getMemberId().equals(currentUsername);
+
                     if (!isOwner) {
-                        log.warn("User {} attempted to access video {} without ownership",currentUsername, videoSeq);
+                        log.warn("사용자 {} - 비디오 {} 소유권 없음", currentUsername, videoSeq);
                     }
+
                     return isOwner;
                 })
-                .orElse(false);
+                .orElseGet(() -> {
+                    log.error("존재하지 않는 비디오 ID: {}", videoSeq);
+                    return false;
+                });
     }
 }

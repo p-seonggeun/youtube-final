@@ -1,16 +1,18 @@
 package io.goorm.youtube.service;
 
-import io.goorm.youtube.dto.FileUploadResult;
-import io.goorm.youtube.security.SecurityUtils;
-import io.goorm.youtube.util.FileUtil;
-import io.goorm.youtube.util.SecurityUtil;
 import io.goorm.youtube.domain.Member;
+import io.goorm.youtube.dto.FileUploadResult;
 import io.goorm.youtube.dto.member.MemberCreateRequest;
 import io.goorm.youtube.dto.member.MemberResponse;
 import io.goorm.youtube.dto.member.MemberUpdateRequest;
 import io.goorm.youtube.dto.member.PasswordUpdateRequest;
+import io.goorm.youtube.exception.DuplicateMemberException;
+import io.goorm.youtube.exception.PasswordMismatchException;
+import io.goorm.youtube.file.FileUploadStrategy;
 import io.goorm.youtube.repository.MemberRepository;
+import io.goorm.youtube.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,18 +26,19 @@ public class MemberService {
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
-    private final FileUtil fileUtil;
+    private final FileUploadStrategy fileUploadStrategy;
     private final SecurityUtils securityUtils;
 
+    //사용자 생성
     @Transactional
     public Long createMember(MemberCreateRequest request, MultipartFile profileImage) {
         // 아이디 중복 검사
         if (memberRepository.existsByMemberId(request.getMemberId())) {
-            throw new RuntimeException("이미 가입된 아이디입니다.");
+            throw new DuplicateMemberException(request.getMemberId());
         }
 
         // 프로필 이미지 업로드
-        FileUploadResult profileUploadResult = fileUtil.uploadProfileImage(profileImage);
+        FileUploadResult profileUploadResult = fileUploadStrategy.uploadProfileImage(profileImage);
 
         Member member = Member.createMember(
                 request.getMemberId(),
@@ -49,17 +52,19 @@ public class MemberService {
         return memberRepository.save(member).getMemberSeq();
     }
 
+    //아이디 중복 확인
     public boolean checkMemberIdDuplicate(String memberId) {
         return memberRepository.existsByMemberId(memberId);
     }
 
     public MemberResponse getMyInfo() {
-        return SecurityUtil.getCurrentMemberId()
-                .flatMap(memberRepository::findByMemberId)
-                .map(MemberResponse::of)
-                .orElseThrow(() -> new RuntimeException("로그인 유저 정보가 없습니다."));
+
+        Member member = securityUtils.getCurrentMember();
+
+        return MemberResponse.of(member);
     }
 
+    //사용자 수정
     @Transactional
     @PreAuthorize("isAuthenticated()")  // 인증된 사용자만 접근 가능
     public void updateMyInfo(MemberUpdateRequest request, MultipartFile profileImage) {
@@ -68,8 +73,8 @@ public class MemberService {
 
         // 새로운 비디오 파일이 있는 경우
         if (profileImage != null && !profileImage.isEmpty()) {
-            FileUploadResult profileResult = fileUtil.uploadVideo(profileImage);
-            fileUtil.deleteFile(member.getProfilePath()); // 기존 파일 삭제
+            FileUploadResult profileResult = fileUploadStrategy.uploadProfileImage(profileImage);
+            fileUploadStrategy.deleteFile(member.getProfilePath()); // 기존 파일 삭제
             member.updateProfile(profileResult.getFilePath());
         }
 
@@ -79,16 +84,29 @@ public class MemberService {
         );
     }
 
+    //비밀번호 수정
     @Transactional
-    @PreAuthorize("isAuthenticated()")  // 인증된 사용자만 접근 가능
-    public void updatePassword(PasswordUpdateRequest request) {
-        Member member = securityUtils.getCurrentMember();
+    @PreAuthorize("isAuthenticated()")
+    public void updatePassword(Long memberSeq, PasswordUpdateRequest request) {  // memberId 추가
 
-        if (!passwordEncoder.matches(request.getCurrentPassword(), member.getMemberPw())) {
-            throw new RuntimeException("현재 비밀번호가 일치하지 않습니다.");
+        // 현재 인증된 사용자가 이 memberSeq의 소유자인지 확인
+        Member currentMember = securityUtils.getCurrentMember();
+
+        if (!currentMember.getMemberSeq().equals(memberSeq)) {
+            throw new AccessDeniedException("비밀번호 변경 권한이 없습니다.");
         }
 
-        member.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+        // 현재 비밀번호 확인
+        if (!passwordEncoder.matches(request.getCurrentPassword(), currentMember.getMemberPw())) {
+            throw new PasswordMismatchException();
+        }
+
+        // 새 비밀번호가 현재 비밀번호와 같은지 확인
+        if (passwordEncoder.matches(request.getNewPassword(), currentMember.getMemberPw())) {
+            throw new IllegalArgumentException("새 비밀번호는 현재 비밀번호와 달라야 합니다.");
+        }
+
+        currentMember.updatePassword(passwordEncoder.encode(request.getNewPassword()));
     }
 
 }

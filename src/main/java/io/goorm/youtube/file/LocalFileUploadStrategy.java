@@ -1,4 +1,4 @@
-package io.goorm.youtube.util;
+package io.goorm.youtube.file;
 
 import io.goorm.youtube.dto.FileUploadResult;
 import io.goorm.youtube.exception.FileDeleteException;
@@ -16,10 +16,13 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class FileUtil {
+public class LocalFileUploadStrategy implements FileUploadStrategy {
 
     @Value("${file.upload.directory}")
     private String uploadDirectory;
+
+    @Value("${file.upload.uri}")
+    private String baseUri;
 
     @Value("${file.profile.max-size}")
     private long profileMaxSize;
@@ -100,7 +103,7 @@ public class FileUtil {
             log.info("File uploaded successfully: {}", filePath);
 
             return FileUploadResult.builder()
-                    .filePath(filePath)
+                    .filePath(baseUri + "/" + filePath)
                     .originalFileName(originalFilename)
                     .savedFileName(savedFileName)
                     .fileSize(file.getSize())
