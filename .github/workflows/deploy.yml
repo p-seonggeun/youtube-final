@@ -64,19 +64,22 @@ jobs:
               echo "Kill process id: $CURRENT_PID"
               sudo kill -15 $CURRENT_PID
               sleep 5
-            
-              # SIGTERM 후에도 프로세스가 살아있다면 SIGKILL
-              if ps -p $CURRENT_PID > /dev/null; then
-                sudo kill -9 $CURRENT_PID
-              fi
             fi
             
-            # 새 프로세스 시작 (메모리 설정 추가)
-            nohup java -jar \
+            # 새 프로세스 시작 (백그라운드에서 실행)
+            echo "Starting new application..."
+            sudo nohup java -jar \
               -Dspring.profiles.active=aws \
               -Xms512m -Xmx1024m \
-              -XX:+HeapDumpOnOutOfMemoryError \
-              -XX:HeapDumpPath=/home/ubuntu/app/heapdump.hprof \
               *.jar > /home/ubuntu/app/application.log 2>&1 &
             
-            echo "Deploy finished"
+            # 프로세스가 정상적으로 시작되었는지 확인
+            sleep 10
+            NEW_PID=$(pgrep -f '.jar')
+            if [ -n "$NEW_PID" ]; then
+              echo "Application started successfully with PID: $NEW_PID"
+              exit 0
+            else
+              echo "Failed to start application"
+              exit 1
+            fi
