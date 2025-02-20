@@ -56,6 +56,8 @@ jobs:
           script: |
             mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
-            aws s3 cp "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$(aws s3 ls s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/ | sort | tail -n 1 | awk '{print $4}')" ./application.jar
-            pkill -f "$PROJECT_NAME" || true
+            aws s3 ls s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/
+            jar_name=$(aws s3 ls s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/ | grep jar | sort | tail -n 1 | awk '{print $4}')
+            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$jar_name ./application.jar
+            pgrep -f youtube-final | xargs kill -9 || true
             nohup java -jar application.jar --spring.profiles.active=aws > application.log 2>&1 &
