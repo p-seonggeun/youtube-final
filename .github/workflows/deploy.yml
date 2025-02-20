@@ -39,7 +39,7 @@ jobs:
 
       - name: Upload to S3
         run: |
-          aws s3 cp ./build/libs/*.jar s3://${{ secrets.S3_BUCKET_NAME }}/deploy/apps/$PROJECT_NAME/
+          aws s3 cp "./build/libs/*.jar" "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME"
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
@@ -49,10 +49,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
             # S3에서 JAR 파일 다운로드
-            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$(ls /s3/$PROJECT_NAME/ | grep .jar) /home/${{ secrets.EC2_USERNAME }}/app/
+            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$(ls -t s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME | head -n1) /home/${{ secrets.EC2_USERNAME }}/app/
             
             # 기존 애플리케이션 중지
             sudo systemctl stop $PROJECT_NAME || true
             
-            # 새 JAR 파일로 서비스 실행 (aws 프로파일 사용)
+            # 새 JAR 파일로 서비스 실행
             sudo java -jar /home/${{ secrets.EC2_USERNAME }}/app/*.jar --spring.profiles.active=aws &
