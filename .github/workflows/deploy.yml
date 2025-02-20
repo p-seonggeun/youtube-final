@@ -58,23 +58,14 @@ jobs:
             sudo ./gradlew clean build -x test
             
             echo "Copying JAR file..."
-            cd build/libs
-            JAR_NAME=$(ls *.jar)
-            if [ -f "$JAR_NAME" ]; then
-              echo "Found JAR: $JAR_NAME"
-              sudo cp "$JAR_NAME" /home/ubuntu/app/application.jar
-              sudo chown ubuntu:ubuntu /home/ubuntu/app/application.jar
-              echo "JAR file copied successfully"
+            sudo cp /home/ubuntu/app/deploy/build/libs/youtube-0.0.1-SNAPSHOT.jar /home/ubuntu/app/application.jar
+            sudo chown ubuntu:ubuntu /home/ubuntu/app/application.jar
+            echo "JAR file copied successfully"
             
-              echo "Starting service..."
-              sudo systemctl restart spring-app
+            echo "Starting service..."
+            sudo systemctl restart spring-app
             
-              echo "Checking service status..."
-              sleep 5
-              sudo systemctl status spring-app
-              sudo journalctl -u spring-app -n 50 --no-pager
-            else
-              echo "No JAR file found!"
-              ls -la
-              exit 1
-            fi
+            echo "Checking service status..."
+            sleep 5
+            sudo systemctl status spring-app
+            sudo journalctl -u spring-app -n 50 --no-pager
