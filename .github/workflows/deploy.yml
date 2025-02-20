@@ -5,7 +5,8 @@ on:
     branches: [ "main" ]
 
 env:
-  PROJECT_NAME: youtube-final
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
 
 jobs:
   deploy:
@@ -24,39 +25,37 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew clean build
-        env:
-          SPRING_DATASOURCE_URL: ${{ secrets.DB_URL }}
-          SPRING_DATASOURCE_USERNAME: ${{ secrets.DB_USERNAME }}
-          SPRING_DATASOURCE_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: ./gradlew clean build -x test
+
+      - name: Make zip file
+        run: zip -r ./deploy.zip .
+        shell: bash
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Check build directory
-        run: |
-          ls -la ./build/libs/
-
       - name: Upload to S3
-        run: |
-          jar_file=$(find ./build/libs -name "*.jar" | head -n 1)
-          jar_name=$(basename "$jar_file")
-          aws s3 cp "$jar_file" "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$jar_name"
-          echo "JAR_NAME=$jar_name" >> $GITHUB_ENV
+        run: aws s3 cp --region ${{ secrets.AWS_REGION }} ./deploy.zip s3://${{ secrets.S3_BUCKET_NAME }}/
 
-      - name: Deploy to EC2
+      - name: Connect to EC2 and Deploy
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
-            mkdir -p /home/ubuntu/app
             cd /home/ubuntu/app
-            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/${{ env.JAR_NAME }} ./application.jar
-            pgrep -f youtube-final | xargs kill -9 || true
-            nohup java -jar application.jar --spring.profiles.active=aws > application.log 2>&1 &
+            sudo rm -rf ./deploy
+            mkdir ./deploy
+            cd ./deploy
+            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/deploy.zip .
+            unzip ./deploy.zip
+            sudo chmod +x ./gradlew
+            sudo ./gradlew clean build -x test
+            cd build/libs
+            sudo kill -9 $(pgrep -f '.jar') || true
+            nohup java -jar -Dspring.profiles.active=aws *.jar > /dev/null 2>&1 &
