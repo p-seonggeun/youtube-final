@@ -44,7 +44,8 @@ jobs:
       - name: Upload to S3
         run: |
           jar_file=$(find ./build/libs -name "*.jar" | head -n 1)
-          aws s3 cp "$jar_file" "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/"
+          jar_name=$(basename "$jar_file")
+          aws s3 cp "$jar_file" "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$jar_name"
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
@@ -53,27 +54,8 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
-            # 배포 디렉토리 구조 생성
-            mkdir -p /home/ubuntu/app/deploy
-            
-            # S3에서 최신 JAR 파일 정보 확인
-            jar_name=$(aws s3 ls "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/" | sort | tail -n 1 | awk '{print $4}')
-            timestamp=$(date +%Y%m%d_%H%M%S)
-            deploy_dir="/home/ubuntu/app/deploy/$timestamp"
-            
-            # 새로운 배포 디렉토리 생성 및 JAR 파일 다운로드
-            mkdir -p $deploy_dir
-            aws s3 cp "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$jar_name" "$deploy_dir/application.jar"
-            
-            # 기존 프로세스 종료
-            sudo pkill -f "$PROJECT_NAME" || true
-            
-            # 새 JAR 파일 실행
-            cd $deploy_dir
+            mkdir -p /home/ubuntu/app
+            cd /home/ubuntu/app
+            aws s3 cp "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$(aws s3 ls s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/ | sort | tail -n 1 | awk '{print $4}')" ./application.jar
+            pkill -f "$PROJECT_NAME" || true
             nohup java -jar application.jar --spring.profiles.active=aws > application.log 2>&1 &
-            
-            # 심볼릭 링크 업데이트
-            ln -sfn $deploy_dir /home/ubuntu/app/current
-            
-            # 이전 버전 정리 (최근 3개 버전만 유지)
-            cd /home/ubuntu/app/deploy && ls -t | tail -n +4 | xargs rm -rf
