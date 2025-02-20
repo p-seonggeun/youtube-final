@@ -37,9 +37,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Check build directory
+        run: |
+          ls -la ./build/libs/
+
       - name: Upload to S3
         run: |
-          aws s3 cp "./build/libs/*.jar" "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME"
+          jar_file=$(find ./build/libs -name "*.jar" | head -n 1)
+          aws s3 cp "$jar_file" "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/"
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
@@ -49,10 +54,10 @@ jobs:
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
           script: |
             # S3에서 JAR 파일 다운로드
-            aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$(ls -t s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME | head -n1) /home/${{ secrets.EC2_USERNAME }}/app/
+            aws s3 cp "s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME/$(ls -t s3://${{ secrets.S3_BUCKET_NAME }}/$PROJECT_NAME | head -n1)" "/home/${{ secrets.EC2_USERNAME }}/app/"
             
             # 기존 애플리케이션 중지
             sudo systemctl stop $PROJECT_NAME || true
             
             # 새 JAR 파일로 서비스 실행
-            sudo java -jar /home/${{ secrets.EC2_USERNAME }}/app/*.jar --spring.profiles.active=aws &
+            sudo java -jar "/home/${{ secrets.EC2_USERNAME }}/app/*.jar" --spring.profiles.active=aws &
