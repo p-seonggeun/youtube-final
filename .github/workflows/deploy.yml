@@ -60,20 +60,21 @@ jobs:
             cd build/libs
             
             # Deploy script 생성
-            cat > deploy.sh << 'EOF'
+            sudo tee /home/ubuntu/app/deploy.sh << 'EOF'
             #!/bin/bash
             CURRENT_PID=$(pgrep -f '.jar')
             if [ -n "$CURRENT_PID" ]; then
               kill -15 $CURRENT_PID
               sleep 5
             fi
+            cd /home/ubuntu/app/deploy/build/libs
             nohup java -jar -Dspring.profiles.active=aws -Xms512m -Xmx1024m *.jar > /home/ubuntu/app/application.log 2>&1 &
             echo $! > /home/ubuntu/app/application.pid
             EOF
             
             # script 실행 권한 부여 및 실행
-            chmod +x deploy.sh
-            ./deploy.sh
+            sudo chmod +x /home/ubuntu/app/deploy.sh
+            sudo /home/ubuntu/app/deploy.sh
             
             # 실행 확인
             sleep 5
