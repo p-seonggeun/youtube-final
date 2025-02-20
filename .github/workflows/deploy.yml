@@ -47,43 +47,36 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
-          script_stop: true
           script: |
             cd /home/ubuntu/app
             sudo rm -rf ./deploy
-            mkdir ./deploy
-            cd ./deploy
+            mkdir -p deploy
+            cd deploy
             aws s3 cp s3://${{ secrets.S3_BUCKET_NAME }}/deploy.zip .
-            unzip ./deploy.zip
+            unzip -o deploy.zip
             sudo chmod +x ./gradlew
             sudo ./gradlew clean build -x test
-            cd build/libs
             
-            # Deploy script 생성
-            sudo tee /home/ubuntu/app/deploy.sh << 'EOF'
-            #!/bin/bash
+            # 기존 애플리케이션 프로세스 종료
             CURRENT_PID=$(pgrep -f '.jar')
             if [ -n "$CURRENT_PID" ]; then
+              echo "Kill process id: $CURRENT_PID"
               kill -15 $CURRENT_PID
               sleep 5
             fi
-            cd /home/ubuntu/app/deploy/build/libs
-            nohup java -jar -Dspring.profiles.active=aws -Xms512m -Xmx1024m *.jar > /home/ubuntu/app/application.log 2>&1 &
-            echo $! > /home/ubuntu/app/application.pid
-            EOF
             
-            # script 실행 권한 부여 및 실행
-            sudo chmod +x /home/ubuntu/app/deploy.sh
-            sudo /home/ubuntu/app/deploy.sh
+            # Java 환경변수 설정
+            export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+            export PATH=$JAVA_HOME/bin:$PATH
+            
+            # 새 애플리케이션 실행
+            cd build/libs
+            nohup java -jar \
+              -Dspring.profiles.active=aws \
+              -Xms256m -Xmx512m \
+              -XX:+UseSerialGC \
+              *.jar > /home/ubuntu/app/application.log 2>&1 &
             
             # 실행 확인
-            sleep 5
-            if [ -f /home/ubuntu/app/application.pid ]; then
-              NEW_PID=$(cat /home/ubuntu/app/application.pid)
-              if ps -p $NEW_PID > /dev/null; then
-                echo "Application is running with pid $NEW_PID"
-                exit 0
-              fi
-            fi
-            echo "Failed to start application"
-            exit 1
+            sleep 10
+            ps -ef | grep java
