@@ -23,7 +23,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-@Profile("s3")
+@Profile("aws")
 @RequiredArgsConstructor
 public class S3FileUploadStrategy implements FileUploadStrategy {
 
