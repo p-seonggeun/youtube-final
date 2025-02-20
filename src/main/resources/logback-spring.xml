@@ -11,7 +11,7 @@
 
     <!-- AWS 환경 -->
     <springProfile name="aws">
-        <property name="LOG_PATH" value="/var/log/youtube"/>
+        <property name="LOG_PATH" value="/home/ubuntu/log/youtube"/>
     </springProfile>
 
     <!-- 콘솔 로깅 -->
