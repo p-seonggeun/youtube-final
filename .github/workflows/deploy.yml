@@ -61,7 +61,7 @@ jobs:
             CURRENT_PID=$(pgrep -f '.jar')
             if [ -n "$CURRENT_PID" ]; then
               echo "Kill process id: $CURRENT_PID"
-              kill -15 $CURRENT_PID
+              sudo kill -15 $CURRENT_PID
               sleep 5
             fi
             
@@ -71,12 +71,11 @@ jobs:
             
             # 새 애플리케이션 실행
             cd build/libs
-            setsid nohup java -jar \
+            sudo setsid nohup java -jar \
               -Dspring.profiles.active=aws \
               -Xms256m -Xmx512m \
               -XX:+UseSerialGC \
               *.jar > /home/ubuntu/app/application.log 2>&1 &
-            disown
             
             # 실행 확인
             sleep 10
