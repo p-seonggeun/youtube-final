@@ -57,5 +57,26 @@ jobs:
             sudo chmod +x ./gradlew
             sudo ./gradlew clean build -x test
             cd build/libs
-            sudo kill -9 $(pgrep -f '.jar') || true
-            nohup java -jar -Dspring.profiles.active=aws *.jar > /dev/null 2>&1 &
+            
+            # 기존 프로세스 종료
+            CURRENT_PID=$(pgrep -f '.jar')
+            if [ -n "$CURRENT_PID" ]; then
+              echo "Kill process id: $CURRENT_PID"
+              sudo kill -15 $CURRENT_PID
+              sleep 5
+            
+              # SIGTERM 후에도 프로세스가 살아있다면 SIGKILL
+              if ps -p $CURRENT_PID > /dev/null; then
+                sudo kill -9 $CURRENT_PID
+              fi
+            fi
+            
+            # 새 프로세스 시작 (메모리 설정 추가)
+            nohup java -jar \
+              -Dspring.profiles.active=aws \
+              -Xms512m -Xmx1024m \
+              -XX:+HeapDumpOnOutOfMemoryError \
+              -XX:HeapDumpPath=/home/ubuntu/app/heapdump.hprof \
+              *.jar > /home/ubuntu/app/application.log 2>&1 &
+            
+            echo "Deploy finished"
