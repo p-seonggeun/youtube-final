@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthRestController {
 
-    /**
+    /** 1
      * 인증 관련 비즈니스 로직을 처리하는 서비스
      */
     private final AuthService authService;
